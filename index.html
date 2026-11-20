@@ -1,0 +1,898 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Blockscape">
+<title>Blockscape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: stone-slab HUD over a full-bleed voxel canvas; menus are stacked slabs with grass-lipped block buttons. */
+:root {
+  --night: #0e141c;
+  --slab: #161e29;
+  --slab-2: #1f2a38;
+  --edge: #2e3e52;
+  --ink: #eef2f4;
+  --muted: #9cadbb;
+  --moss: #86c55a;
+  --moss-deep: #4f8a32;
+  --dirt: #7a5536;
+  --sand: #e6cf93;
+  --water: #5a9ae6;
+  --warn: #e98a6c;
+  --ench: #8fe9ff;
+  --xp: #7ef04a;
+  --scrim: rgba(6, 9, 14, 0.66);
+  --slot: 44px;
+  --display: 'Silkscreen', 'Courier New', monospace;
+  --body: 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--night); color: var(--ink); font: 15px/1.5 var(--body); overflow: hidden; -webkit-font-smoothing: antialiased; }
+[hidden] { display: none !important; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--sand); outline-offset: 2px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* ---------- shared pieces ---------- */
+.slab { background: var(--slab); box-shadow: inset 0 0 0 2px var(--edge), inset 0 3px 0 rgba(255, 255, 255, 0.04), 0 22px 48px rgba(0, 0, 0, 0.5); }
+.eyebrow { font: 700 11px/1 var(--display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--sand); }
+.hint { color: var(--muted); font-size: 13px; }
+.btn { font: 700 13px/1 var(--display); letter-spacing: 0.06em; padding: 14px 18px 16px; background: var(--slab-2); color: var(--ink); border: 0; cursor: pointer; box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.35), inset 0 0 0 2px var(--edge); transition: transform 0.08s, background 0.15s; }
+.btn:hover { background: #283647; }
+.btn:active { transform: translateY(2px); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-grass { background: linear-gradient(var(--moss) 0 8px, var(--moss-deep) 8px 10px, var(--dirt) 10px); color: #fff; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); padding-top: 20px; box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.3), inset 0 0 0 2px rgba(0, 0, 0, 0.3); }
+.btn-grass:hover { background: linear-gradient(#97d36a 0 8px, var(--moss-deep) 8px 10px, #8a6240 10px); }
+.btn-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.screen { position: fixed; inset: 0; display: grid; place-items: center; overflow: auto; padding-block: 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); z-index: 20; }
+.field { flex: 1; min-width: 0; background: #0b1118; border: 0; box-shadow: inset 0 0 0 2px var(--edge), inset 0 3px 0 rgba(0, 0, 0, 0.4); padding: 13px 14px; font: 600 16px/1.2 var(--mono); color: var(--sand); }
+.field::placeholder { color: #5d6e7e; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { background: var(--slab-2); border: 0; padding: 7px 10px; cursor: pointer; font-size: 13px; box-shadow: inset 0 0 0 1px var(--edge); }
+.chip[aria-pressed="true"] { background: var(--sand); color: var(--night); }
+.chip.recent::before { content: '\21ba  '; color: var(--muted); }
+kbd { font: 600 11px/1 var(--mono); display: inline-block; min-width: 18px; text-align: center; padding: 3px 5px 4px; margin-right: 4px; background: #2a3746; color: var(--ink); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.45); }
+.swatch { width: 12px; height: 12px; flex: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35); }
+
+/* ---------- title ---------- */
+#title-screen { background: radial-gradient(120% 70% at 75% 0%, #23405e 0%, transparent 60%), linear-gradient(#101a26, #0b1018 70%); }
+#title-strata { position: fixed; left: 0; right: 0; bottom: 0; width: 100%; height: 30vh; image-rendering: pixelated; opacity: 0.5; pointer-events: none; }
+.title-wrap { position: relative; width: min(1080px, 100%); display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr); gap: 36px; align-items: center; }
+.brand { display: grid; gap: 16px; min-width: 0; }
+.brand h1 { font: 700 clamp(34px, 5.4vw, 66px)/0.9 var(--display); overflow-wrap: anywhere; letter-spacing: -0.01em; text-shadow: 0 5px 0 var(--moss-deep), 0 9px 0 var(--dirt), 0 14px 26px rgba(0, 0, 0, 0.5); }
+.lede { font-size: 17px; max-width: 50ch; color: #d4dde4; }
+#seed-form { display: grid; gap: 10px; max-width: 560px; }
+.label { font: 700 12px/1 var(--display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.seed-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.seed-row .field { font-size: 20px; letter-spacing: 0.08em; text-transform: none; flex: 1 1 220px; }
+.seed-tools { display: flex; gap: 6px; flex-wrap: wrap; }
+.seed-tools .btn { padding: 10px 12px 12px; font-size: 11px; }
+.seed-meta { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; }
+.seed-note { color: var(--muted); }
+.seed-note.warn { color: var(--warn); }
+#seed-number { font: 12px var(--mono); color: var(--sand); }
+.opts { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 14px; align-items: end; margin-top: 4px; }
+.seg { display: flex; box-shadow: inset 0 0 0 2px var(--edge); }
+.seg button { flex: 1; border: 0; background: transparent; padding: 10px 8px; cursor: pointer; font: 700 11px/1 var(--display); letter-spacing: 0.05em; }
+.seg button[aria-pressed="true"] { background: var(--sand); color: var(--night); }
+select.field { padding: 9px 10px; font-size: 14px; }
+#mode-desc { grid-column: 1 / -1; font-size: 13px; color: #c8d2da; min-height: 2.6em; }
+.preview { margin: 0; padding: 18px; display: grid; gap: 12px; min-width: 0; }
+.preview figcaption { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.preview figcaption span { font: 12px var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#preview-map { width: 100%; aspect-ratio: 1; max-width: 100%; image-rendering: pixelated; box-shadow: 0 0 0 2px #0b1118; background: #0b1118; }
+#preview-legend { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; font-size: 13px; }
+#preview-legend li { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+#preview-legend b { font-weight: 400; color: var(--muted); margin-left: auto; }
+.title-foot { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); font-size: 12px; color: var(--muted); }
+
+/* ---------- loading and pause ---------- */
+#loading-screen { background: rgba(8, 12, 18, 0.94); }
+.load-card { width: min(520px, 100%); padding: 28px; display: grid; gap: 18px; }
+.load-card h2 { font: 700 22px/1.1 var(--display); }
+.bar { height: 18px; background: #0b1118; box-shadow: inset 0 0 0 2px var(--edge); padding: 4px; }
+.bar i { display: block; height: 100%; width: 0; background: repeating-linear-gradient(90deg, var(--moss) 0 10px, #74b24b 10px 12px); transition: width 0.15s; }
+#load-steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; font-size: 14px; color: var(--muted); counter-reset: step; }
+#load-steps li { display: flex; gap: 10px; align-items: baseline; }
+#load-steps li::before { counter-increment: step; content: counter(step); font: 11px var(--mono); width: 18px; color: #5d6e7e; }
+#load-steps li.done { color: var(--ink); }
+#load-steps li.done::before { content: '\2713'; color: var(--moss); }
+#load-steps li.now { color: var(--sand); }
+#pause-screen { background: var(--scrim); backdrop-filter: blur(3px); }
+.pause-card { width: min(420px, 100%); padding: 26px; display: grid; gap: 12px; }
+.pause-card h2 { font: 700 28px/1 var(--display); }
+.pause-card .btn { width: 100%; text-align: left; }
+.pause-meta { font: 12px/1.6 var(--mono); color: var(--muted); display: grid; gap: 2px; }
+.pause-meta b { color: var(--sand); font-weight: 600; }
+#pause-note { color: var(--sand); font-size: 13px; }
+
+/* ---------- HUD ---------- */
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+/* touch controls */
+body.touch { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+body.touch #view { touch-action: none; }
+body.touch #keys-hint { display: none; }
+body.touch #hotbar .slot { pointer-events: auto; }
+#touch-ui { position: absolute; inset: 0; pointer-events: none; }
+#touch-ui .t-btn { pointer-events: auto; touch-action: none; position: absolute; width: 74px; height: 74px; border-radius: 14px; border: 2px solid rgba(255, 255, 255, 0.35);
+  background: rgba(20, 26, 34, 0.42); color: #f2f4f6; font: 700 26px/1 var(--display, sans-serif); display: grid; place-items: center; -webkit-tap-highlight-color: transparent; }
+#touch-ui .t-btn.down { background: rgba(255, 255, 255, 0.3); }
+#touch-ui .t-btn.small { width: 54px; height: 54px; font-size: 15px; border-radius: 12px; }
+#t-jump { right: max(28px, env(safe-area-inset-right)); bottom: 120px; }
+#t-sneak { right: max(116px, calc(env(safe-area-inset-right) + 88px)); bottom: 70px; }
+#t-inv { right: max(28px, env(safe-area-inset-right)); bottom: 206px; }
+#t-drop { right: max(96px, calc(env(safe-area-inset-right) + 68px)); bottom: 160px; }
+#touch-ui .t-top { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
+#touch-ui .t-top .t-btn { position: static; }
+#t-stick { position: absolute; width: 130px; height: 130px; margin: -65px 0 0 -65px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.35); background: rgba(20, 26, 34, 0.3); pointer-events: none; }
+#t-stick i { position: absolute; left: 40px; top: 40px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255, 255, 255, 0.55); }
+body.spectator #t-drop, body.spectator #t-inv { display: none; }
+#crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%, -50%); mix-blend-mode: difference; }
+#crosshair::before, #crosshair::after { content: ''; position: absolute; background: #fff; }
+#crosshair::before { left: 10px; top: 0; width: 2px; height: 22px; }
+#crosshair::after { top: 10px; left: 0; height: 2px; width: 22px; }
+#attack-ind { position: absolute; left: 50%; top: calc(50% + 18px); width: 32px; height: 4px; transform: translateX(-50%); background: rgba(0, 0, 0, 0.5); }
+#attack-ind i { display: block; height: 100%; background: #e8e8e8; }
+#debug { position: absolute; inset: 0; pointer-events: none; display: flex; justify-content: space-between; align-items: flex-start; padding: 4px; font: 14px/1.3 var(--mono); color: #e0e0e0; text-shadow: 1px 1px 0 #3f3f3f; z-index: 3; }
+#debug[hidden] { display: none; }
+#debug > div { display: flex; flex-direction: column; gap: 0; max-width: 50%; }
+#debug-right { align-items: flex-end; text-align: right; }
+#debug span { background: rgba(80, 80, 80, 0.55); padding: 0 3px; min-height: 1.3em; white-space: pre; width: fit-content; }
+#debug span:empty { background: none; }
+#info { position: absolute; left: max(12px, env(safe-area-inset-left, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); background: rgba(10, 14, 20, 0.62); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); padding: 10px 12px; font: 12px/1.65 var(--mono); font-variant-numeric: tabular-nums; white-space: pre; color: #d8e2ea; }
+#keys-hint { position: absolute; right: max(12px, env(safe-area-inset-right, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 60vw; font-size: 12px; color: #e2e8ee; }
+#keys-hint span { background: rgba(10, 14, 20, 0.55); padding: 4px 8px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
+#effects { position: absolute; right: max(12px, env(safe-area-inset-right, 0px)); top: calc(52px + env(safe-area-inset-top, 0px)); display: grid; gap: 4px; }
+.effect { display: grid; grid-template-columns: 14px auto auto; gap: 8px; align-items: center; background: rgba(10, 14, 20, 0.66); padding: 5px 9px; font-size: 12px; }
+.effect i { width: 14px; height: 14px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4); }
+.effect b { font: 12px var(--mono); color: var(--muted); }
+#target-label { position: absolute; left: 50%; top: calc(50% + 30px); transform: translateX(-50%); font-size: 13px; text-align: center; white-space: nowrap; background: rgba(10, 14, 20, 0.6); padding: 4px 10px; }
+#target-label small { color: var(--muted); font-size: 12px; }
+#target-label em { color: var(--warn); font-style: normal; font-size: 12px; }
+#toast, #speed-pop { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); font: 700 14px/1.3 var(--display); letter-spacing: 0.04em; text-align: center; background: rgba(10, 14, 20, 0.72); padding: 10px 16px; max-width: 90vw; transition: opacity 0.3s; }
+#speed-pop { top: auto; bottom: 18%; }
+#hotbar-wrap { position: absolute; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: grid; justify-items: center; gap: 4px; width: 418px; max-width: calc(100vw - 16px); }
+#slot-name { font: 700 13px/1 var(--display); letter-spacing: 0.05em; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.7); transition: opacity 0.4s; min-height: 13px; }
+#bars { width: 100%; display: flex; justify-content: space-between; align-items: flex-end; }
+#bars .col { display: grid; gap: 1px; }
+.icons { display: flex; height: 18px; }
+.icons i { width: 18px; height: 18px; background-size: 18px 18px; image-rendering: pixelated; }
+.icons.rtl { flex-direction: row-reverse; }
+#hearts.shake i:nth-child(odd) { animation: jig 0.3s infinite; }
+@keyframes jig { 50% { transform: translateY(-2px); } }
+#xp { position: relative; width: 100%; height: 7px; background: #1a1f12; box-shadow: inset 0 0 0 1px #000; margin-top: 2px; }
+#xp-fill { display: block; height: 100%; width: 0; background: var(--xp); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.3); }
+#xp-level { position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%); font: 700 15px/1 var(--display); color: var(--xp); text-shadow: 2px 0 #000, -2px 0 #000, 0 2px #000, 0 -2px #000; }
+.hotbar-row { position: relative; display: flex; gap: 6px; align-items: end; }
+#offhand { position: absolute; right: calc(100% + 8px); bottom: 5px; }
+#hotbar { display: flex; gap: 2px; padding: 3px; background: rgba(10, 14, 20, 0.7); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.08); }
+.slot { position: relative; width: var(--slot); height: var(--slot); display: grid; place-items: center; background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.4); border: 0; padding: 0; overflow: hidden; }
+.slot img { width: 34px; height: 34px; image-rendering: pixelated; pointer-events: none; }
+.slot .num { position: absolute; left: 4px; top: 2px; font: 10px var(--mono); color: rgba(255, 255, 255, 0.55); }
+.slot .count { position: absolute; right: 3px; bottom: 1px; font: 700 13px/1 var(--display); text-shadow: 2px 2px 0 #222; }
+.slot .dur { position: absolute; left: 5px; right: 5px; bottom: 4px; height: 3px; background: #000; }
+.slot .dur i { display: block; height: 100%; }
+.slot .ghost { font-size: 10px; color: rgba(255, 255, 255, 0.28); text-align: center; line-height: 1.1; }
+.slot .glint { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(115deg, transparent 30%, rgba(190, 120, 255, 0.45) 45%, transparent 60%); background-size: 260% 100%; animation: glint 2.6s linear infinite; mix-blend-mode: screen; }
+@keyframes glint { from { background-position: 130% 0; } to { background-position: -130% 0; } }
+.slot.sel { background: rgba(230, 207, 147, 0.18); box-shadow: inset 0 0 0 3px var(--sand); }
+#water-tint { position: fixed; inset: 0; background: rgba(28, 74, 168, 0.32); pointer-events: none; z-index: 4; }
+#hurt-flash { position: fixed; inset: 0; pointer-events: none; z-index: 4; background: radial-gradient(ellipse at center, transparent 40%, rgba(200, 0, 0, 0.9)); opacity: 0; }
+#fire-overlay { position: fixed; left: 0; right: 0; bottom: 0; height: 32vh; pointer-events: none; z-index: 4; background: linear-gradient(transparent, rgba(255, 120, 20, 0.45) 60%, rgba(255, 200, 60, 0.6)); animation: flick 0.25s infinite alternate; }
+@keyframes flick { to { opacity: 0.7; } }
+body.spectator #crosshair, body.spectator #hotbar-wrap, body.spectator #effects, body.spectator #info, body.spectator #keys-hint, body.spectator #target-label, body.spectator #attack-ind { display: none !important; }
+body.hud-hidden #hud > :not(#toast) { visibility: hidden; }
+
+/* ---------- chat ---------- */
+#chat { position: fixed; left: max(8px, env(safe-area-inset-left, 0px)); right: max(8px, env(safe-area-inset-right, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px)); z-index: 25; pointer-events: none; display: grid; gap: 4px; }
+#chat-log { max-width: min(640px, 100%); max-height: 40vh; overflow: hidden; display: grid; align-content: end; gap: 1px; margin-bottom: 96px; }
+#chat.open #chat-log { overflow-y: auto; margin-bottom: 0; pointer-events: auto; }
+.chat-line { background: rgba(0, 0, 0, 0.45); padding: 2px 8px; font: 14px/1.4 var(--mono); color: #f2f2f2; text-shadow: 1px 1px 0 #000; transition: opacity 1s; overflow-wrap: anywhere; }
+.chat-line.old { opacity: 0; }
+#chat.open .chat-line.old { opacity: 1; }
+.chat-line.err { color: #ff6b6b; }
+.chat-line.ok { color: #e6e6e6; }
+.chat-line.cmd { color: #ffe270; }
+.chat-line.echo { color: #a0a0a0; }
+.chat-line.help { color: #9ad8ff; }
+.chat-copy { color: var(--xp); text-decoration: underline; cursor: pointer; }
+#chat-suggest { justify-self: start; background: rgba(0, 0, 0, 0.8); padding: 4px 0; font: 14px/1.4 var(--mono); min-width: 200px; }
+#chat-suggest .sugg { padding: 1px 10px; color: #aaa; }
+#chat-suggest .sugg.on { color: #ffe270; }
+#chat-suggest .usage { padding: 1px 10px 4px; color: #888; border-bottom: 1px solid #333; margin-bottom: 2px; }
+#chat-input { pointer-events: auto; width: 100%; background: rgba(0, 0, 0, 0.6); border: 0; padding: 8px 10px; font: 15px var(--mono); color: #fff; outline: none; }
+
+/* ---------- modals and screens ---------- */
+.modal, #screen { position: fixed; inset: 0; z-index: 30; background: var(--scrim); display: grid; place-items: center; padding-block: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-bottom, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.modal-card { width: min(1040px, 100%); height: min(780px, 100%); display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.modal-head, .screen-head { display: flex; align-items: center; gap: 14px; padding: 16px 18px; box-shadow: inset 0 -2px 0 var(--edge); flex-wrap: wrap; }
+.modal-head h2, .screen-head h2 { font: 700 18px/1 var(--display); letter-spacing: 0.03em; margin-right: auto; }
+.close { font: 700 12px/1 var(--display); padding: 10px 12px 12px; }
+#screen-panel { width: min(760px, 100%); max-height: 100%; overflow: auto; display: grid; gap: 16px; padding-bottom: 18px; }
+.screen-head .hint { flex-basis: 100%; order: 3; font-size: 12px; }
+.inv-section { padding: 0 18px; display: grid; gap: 8px; justify-items: start; }
+.inv-section h3 { font: 700 12px/1 var(--display); letter-spacing: 0.08em; color: var(--muted); display: flex; align-items: center; gap: 12px; }
+.slot-grid { display: grid; gap: 2px; }
+.slot-grid .slot { cursor: pointer; }
+.slot-grid .slot:hover, .creative-grid .slot:hover { background: rgba(255, 255, 255, 0.16); }
+.hotbar-grid { margin-top: 8px; }
+.inv-top { display: flex; flex-wrap: wrap; gap: 18px; align-items: start; justify-items: initial; }
+.inv-top .inv-section { padding: 0; }
+.inv-stats { display: grid; gap: 4px; font-size: 13px; color: var(--muted); align-self: center; min-width: 120px; }
+.inv-stats b { color: var(--ink); }
+.craft-row, .furnace-row, .enchant-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.arrow { font: 700 22px/1 var(--display); color: var(--muted); }
+.slot.big { width: 56px; height: 56px; }
+.furnace-col { display: grid; gap: 6px; justify-items: center; }
+.flame { width: 16px; height: 18px; background: #2a1a10; position: relative; }
+.flame i { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(#ffe08a, #ff7a1a); }
+.progress { width: 64px; height: 12px; background: #2a2a2a; box-shadow: inset 0 0 0 1px #000; }
+.progress i { display: block; height: 100%; width: 0; background: #e8e8e8; }
+.anvil-name { max-width: 320px; font-size: 14px; padding: 9px 10px; }
+.anvil-cost { font: 700 13px/1 var(--display); color: var(--xp); min-height: 14px; }
+.anvil-cost.bad { color: var(--warn); }
+.offers { display: grid; gap: 6px; flex: 1; min-width: 260px; }
+.offer { display: grid; grid-template-columns: 34px 1fr; gap: 2px 10px; text-align: left; background: #2c2440; border: 0; padding: 8px 10px; cursor: pointer; box-shadow: inset 0 0 0 1px #4a3d6a; }
+.offer b { grid-row: span 2; font: 700 18px/1 var(--display); color: var(--xp); align-self: center; }
+.offer span { font-size: 13px; color: #d8c8ff; }
+.offer small { font-size: 11px; color: var(--muted); }
+.offer:disabled { opacity: 0.45; cursor: not-allowed; }
+.offer:not(:disabled):hover { background: #3a2f58; }
+.gallery-tools { display: flex; flex-wrap: wrap; gap: 10px; padding: 0 18px; align-items: center; }
+.gallery-tools .field { flex: 0 1 240px; padding: 10px 12px; font-size: 14px; }
+.creative-grid { display: flex; flex-wrap: wrap; gap: 2px; padding: 0 18px; max-height: 300px; overflow-y: auto; align-content: start; }
+.creative-grid .slot { cursor: pointer; }
+.creative-grid + .hint { padding: 0 18px; }
+.creative-grid.survival-tab { display: block; }
+.creative-gear { display: flex; gap: 2px; margin-bottom: 10px; }
+.creative-gear .slot:last-child { margin-left: 14px; }
+.slot.trash { width: 34px; height: 34px; background: rgba(200, 60, 60, 0.25); cursor: pointer; }
+#cursor-stack { position: fixed; left: 0; top: 0; z-index: 60; pointer-events: none; background: none; box-shadow: none; }
+#tooltip { position: fixed; left: 0; top: 0; z-index: 61; pointer-events: none; background: #120a1c; box-shadow: inset 0 0 0 2px #2c0f5a; padding: 6px 9px; display: grid; gap: 2px; max-width: 320px; font-size: 13px; }
+#tooltip .tt-ench { color: var(--ench); }
+#tooltip .tt-line { color: #b0b0b0; }
+#tooltip .tt-dim { color: #8aa0b4; font-size: 12px; }
+#death-screen { background: rgba(120, 10, 10, 0.55); z-index: 40; }
+.death-card { text-align: center; display: grid; gap: 14px; justify-items: center; }
+.death-card h2 { font: 700 clamp(40px, 7vw, 64px)/1 var(--display); text-shadow: 0 4px 0 #300; }
+#death-score { color: var(--sand); font: 700 14px var(--display); }
+#totem-flash { position: fixed; inset: 0; z-index: 41; display: grid; place-items: center; pointer-events: none; background: rgba(120, 220, 80, 0.15); }
+#totem-flash img { width: 160px; height: 160px; image-rendering: pixelated; }
+#totem-flash.go img { animation: totem 1.5s ease-out forwards; }
+@keyframes totem { 0% { transform: scale(0.2) rotate(-20deg); opacity: 0; } 20% { transform: scale(1.3); opacity: 1; } 70% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.1); opacity: 0; } }
+#sleep-fade { position: fixed; inset: 0; z-index: 39; background: #000; opacity: 0; transition: opacity 1.2s; pointer-events: none; }
+#sleep-fade.on { opacity: 1; }
+
+/* manual */
+.manual-body { display: grid; grid-template-columns: 190px minmax(0, 1fr); min-height: 0; }
+.tabs { display: grid; align-content: start; gap: 2px; padding: 12px; box-shadow: inset -2px 0 0 var(--edge); overflow-y: auto; }
+.tab { text-align: left; background: none; border: 0; padding: 9px 12px; cursor: pointer; color: var(--muted); font: 700 11px/1.2 var(--display); letter-spacing: 0.05em; }
+.tab:hover { color: var(--ink); background: rgba(255, 255, 255, 0.04); }
+.tab[aria-selected="true"] { color: var(--night); background: var(--sand); }
+.pane { overflow: auto; padding: 24px 28px 40px; min-width: 0; }
+.pane h3 { font: 700 15px/1.2 var(--display); letter-spacing: 0.04em; color: var(--sand); margin: 28px 0 10px; }
+.pane h3:first-child { margin-top: 0; }
+.pane p, .pane li { max-width: 68ch; color: #d8e0e6; font-size: 16px; line-height: 1.6; }
+.pane p + p { margin-top: 10px; }
+.pane ol, .pane ul { padding-left: 22px; margin: 8px 0; display: grid; gap: 6px; }
+.pane code { font: 13px var(--mono); color: var(--sand); background: #0b1118; padding: 1px 5px; }
+.figure-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 14px 0; }
+.fact { background: var(--slab-2); padding: 12px 14px; box-shadow: inset 0 0 0 1px var(--edge); }
+.fact b { display: block; font: 700 20px/1.1 var(--display); color: var(--ink); font-variant-numeric: tabular-nums; }
+.fact span { font-size: 13px; color: var(--muted); }
+.controls { width: 100%; border-collapse: collapse; font-size: 15px; }
+.controls td { padding: 8px 10px; box-shadow: inset 0 -1px 0 var(--edge); vertical-align: top; }
+.controls td:first-child { white-space: nowrap; width: 1%; }
+.table-scroll { overflow-x: auto; }
+.biome-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.biome { background: var(--slab-2); padding: 16px; display: grid; gap: 8px; align-content: start; box-shadow: inset 0 0 0 1px var(--edge); }
+.biome h4 { margin: 0; display: flex; align-items: center; gap: 10px; font: 700 15px/1 var(--display); }
+.biome dl { margin: 0; display: grid; gap: 6px; font-size: 14px; }
+.biome dt { font: 700 10px/1 var(--display); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+.biome dd { margin: 0; color: #d8e0e6; }
+.bestiary { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.beast { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 4px 12px; background: var(--slab-2); padding: 12px; box-shadow: inset 0 0 0 1px var(--edge); }
+.beast img, .beast .ph { grid-row: span 3; width: 64px; height: 64px; background: #0f161f; }
+.beast h4 { margin: 0; font: 700 13px/1.2 var(--display); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.beast .meta { font-size: 12px; color: var(--muted); }
+.beast p { font-size: 13px !important; line-height: 1.45 !important; color: #c8d2da !important; }
+.seen { font: 10px/1 var(--mono); padding: 3px 5px; background: var(--moss-deep); color: #fff; }
+.block-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; margin-bottom: 8px; }
+.block-list div { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px; }
+.block-list img { width: 32px; height: 32px; image-rendering: pixelated; flex: none; }
+.recipes { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 6px 16px; }
+.recipe { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 0; }
+.rgrid { display: grid; gap: 1px; grid-template-columns: repeat(3, 22px); }
+.rgrid.shapeless { grid-template-columns: repeat(3, 22px); }
+.cell { width: 22px; height: 22px; background: rgba(255, 255, 255, 0.06); display: grid; place-items: center; }
+.cell img { width: 20px; height: 20px; image-rendering: pixelated; }
+.recipe .arrow { font-size: 14px; }
+#recipe-search { max-width: 320px; margin-bottom: 12px; padding: 9px 10px; font-size: 14px; }
+
+/* settings */
+.settings-card { width: min(520px, 100%); height: auto; }
+.settings-body { padding: 20px; display: grid; gap: 18px; }
+.setting { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 14px; align-items: center; }
+.setting output { font: 12px var(--mono); color: var(--sand); font-variant-numeric: tabular-nums; }
+.setting input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--moss); }
+.setting input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--moss); }
+
+@media (max-width: 760px) {
+  .title-wrap { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .manual-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .tabs { grid-auto-flow: column; overflow-x: auto; box-shadow: inset 0 -2px 0 var(--edge); }
+  .pane { padding: 18px 16px 32px; }
+  #keys-hint { display: none; }
+  :root { --slot: 36px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ---------- v3: title tabs, world list, HUD button, panels ---------- */
+.title-tabs { display: flex; gap: 4px; box-shadow: inset 0 -2px 0 var(--edge); }
+.title-tabs button { background: none; border: 0; padding: 10px 14px; cursor: pointer; color: var(--muted); font: 700 12px/1 var(--display); letter-spacing: 0.05em; }
+.title-tabs button[aria-selected="true"] { color: var(--night); background: var(--sand); }
+.title-pane { display: grid; gap: 10px; max-width: 560px; }
+#world-list { display: grid; gap: 8px; max-height: 300px; overflow: auto; }
+.world-card { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; background: var(--slab-2); padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--edge); }
+.world-card b { display: block; font: 700 14px/1.2 var(--display); }
+.world-card span { font-size: 12px; color: var(--muted); }
+.btn.small { padding: 9px 12px 11px; font-size: 11px; }
+.btn.small.btn-grass { padding-top: 13px; }
+.btn.danger:hover { background: #5a2a24; }
+#inv-button { position: absolute; left: calc(100% + 10px); bottom: 4px; pointer-events: auto; display: flex; align-items: center; gap: 6px; background: rgba(10, 14, 20, 0.78); color: var(--ink); border: 0; padding: 8px 10px; cursor: pointer; font: 700 11px/1 var(--display); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.12); white-space: nowrap; }
+#inv-button:hover { background: rgba(40, 54, 72, 0.9); box-shadow: inset 0 0 0 2px var(--sand); }
+#inv-button .bag { width: 18px; height: 18px; background: linear-gradient(#8a5a30 0 30%, #a06a3a 30% 100%); box-shadow: inset 0 0 0 2px #4a2e14; border-radius: 3px 3px 2px 2px; }
+#hud { pointer-events: none; }
+#spyglass { position: fixed; inset: 0; z-index: 4; pointer-events: none; background: radial-gradient(circle at center, transparent 0 33vmin, #000 33.5vmin); }
+#aim-hint { position: absolute; left: 50%; top: calc(50% + 56px); transform: translateX(-50%); font: 12px var(--mono); background: rgba(80, 10, 10, 0.7); color: #ffd8c8; padding: 5px 10px; white-space: nowrap; }
+/* inventory panels: compact, Minecraft-style */
+#screen-panel.mc-panel { width: auto; max-width: 100%; max-height: 100%; overflow: auto; display: grid; gap: 12px; padding: 0 16px 14px; --slot: 40px; background: #1b2430; box-shadow: inset 0 0 0 2px #3c4e63, inset 3px 3px 0 rgba(255, 255, 255, 0.07), inset -3px -3px 0 rgba(0, 0, 0, 0.35), 0 24px 60px rgba(0, 0, 0, 0.6); }
+.panel-head { display: flex; align-items: center; gap: 10px; margin: 0 -16px; padding: 10px 12px 10px 16px; background: #141b24; box-shadow: inset 0 -2px 0 #3c4e63; }
+.panel-head img { width: 26px; height: 26px; image-rendering: pixelated; }
+.panel-head h2 { font: 700 15px/1 var(--display); letter-spacing: 0.04em; margin-right: auto; }
+.panel-head .x { background: none; border: 0; color: var(--muted); font-size: 24px; line-height: 1; cursor: pointer; padding: 0 6px; }
+.panel-head .x:hover { color: var(--ink); }
+.panel-top { display: flex; gap: 16px; align-items: center; justify-content: center; flex-wrap: wrap; padding-top: 4px; }
+.panel-creative .panel-top { display: grid; justify-content: stretch; }
+.panel-tip { font-size: 11px; color: #7d8fa0; text-align: center; }
+.mc-panel .slot { background: #8b8b8b; box-shadow: inset 2px 2px 0 #373737, inset -2px -2px 0 #ffffff; }
+.mc-panel .slot:hover { background: #a6a6a6; }
+.mc-panel .slot .ghost { color: rgba(0, 0, 0, 0.35); font-weight: 700; }
+.mc-panel .slot .count { color: #fff; }
+.mc-panel .slot.result { width: 52px; height: 52px; background: #9c9c9c; }
+.inv-section { display: grid; gap: 4px; justify-items: center; padding: 0; }
+.inv-label { display: flex; align-items: baseline; gap: 10px; width: 100%; font: 700 11px/1 var(--display); letter-spacing: 0.08em; color: #aebdcb; padding: 6px 0 2px; box-shadow: inset 0 1px 0 #3c4e63; }
+.inv-label small { font: 11px var(--body); letter-spacing: 0; color: #7d8fa0; }
+.mc-panel .hotbar-grid { margin-top: 6px; }
+.slot-grid { display: grid; gap: 0; }
+.armor-col .slot-grid { gap: 0; }
+.portrait { position: relative; width: 112px; height: 150px; background: #0e131a; box-shadow: inset 0 0 0 2px #3c4e63; display: grid; place-items: center; }
+.portrait img { width: 100%; height: 100%; object-fit: contain; }
+.off-slot { position: absolute; right: -50px; bottom: 0; display: grid; justify-items: center; gap: 2px; }
+.mini-label { font-size: 10px; color: #7d8fa0; }
+.craft-box { display: grid; gap: 8px; justify-items: start; margin-left: 46px; }
+.craft-box.wide { margin-left: 0; justify-items: center; }
+.stat-chips { display: flex; gap: 6px; flex-wrap: wrap; font: 12px var(--mono); }
+.stat-chips span { display: flex; align-items: center; gap: 4px; background: #0e131a; padding: 3px 7px; }
+.stat-chips .lvl { color: var(--xp); }
+.stat-chips i { width: 12px; height: 12px; display: inline-block; }
+.ic-heart { background: #d22; clip-path: polygon(50% 100%, 0 35%, 15% 5%, 50% 25%, 85% 5%, 100% 35%); }
+.ic-food { background: #c47436; border-radius: 50% 50% 50% 10%; }
+.ic-armor { background: #ccc; clip-path: polygon(0 0, 35% 0, 50% 20%, 65% 0, 100% 0, 85% 100%, 15% 100%); }
+.craft-row, .furnace-row { display: flex; align-items: center; gap: 12px; }
+.ui-arrow { position: relative; width: 44px; height: 18px; background: #555; clip-path: polygon(0 30%, 65% 30%, 65% 0, 100% 50%, 65% 100%, 65% 70%, 0 70%); }
+.ui-arrow i { position: absolute; inset: 0 auto 0 0; width: 0; background: #fff; }
+.craft-row .ui-arrow i { width: 0; }
+.recipe-btn { justify-self: center; }
+.furnace-col { display: grid; gap: 4px; justify-items: center; }
+.flame { width: 22px; height: 22px; position: relative; background: #3a3a3a; clip-path: polygon(50% 0, 70% 30%, 85% 20%, 100% 60%, 85% 100%, 15% 100%, 0 60%, 15% 25%, 30% 35%); }
+.flame i { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(#ffe08a, #ff7a1a 60%, #d23a10); }
+.panel-anvil .panel-top { display: grid; justify-items: center; gap: 10px; }
+.anvil-name-row { display: flex; align-items: center; gap: 0; width: 100%; max-width: 380px; background: #0c0f14; box-shadow: inset 0 0 0 2px #5e5e5e; }
+.anvil-name-row .pencil { padding: 0 8px; color: #8a8a8a; }
+.anvil-name { flex: 1; min-width: 0; background: none; border: 0; padding: 9px 10px 9px 0; color: #fff; font: 15px var(--mono); outline: none; }
+.anvil-name:disabled { color: #666; }
+.anvil-row { display: flex; align-items: center; gap: 10px; }
+.anvil-row .plus { font: 700 26px/1 var(--display); color: #c8c8c8; }
+.hammer { width: 40px; height: 28px; position: relative; }
+.hammer i { position: absolute; inset: 0; background: #a8a8a8; clip-path: polygon(0 10%, 60% 10%, 60% 0, 100% 0, 100% 60%, 60% 60%, 60% 40%, 48% 40%, 48% 100%, 34% 100%, 34% 40%, 0 40%); }
+.anvil-info { display: grid; justify-items: center; gap: 6px; min-height: 52px; max-width: 380px; text-align: center; }
+.anvil-notes { list-style: none; margin: 0; padding: 0; font-size: 13px; color: #d8e0e6; display: grid; gap: 2px; }
+.cost-pill { font: 700 13px/1 var(--display); color: #0b1a06; background: var(--xp); padding: 6px 10px; box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25); }
+.cost-pill.bad { background: #e05a4a; color: #fff; }
+.enchant-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.enchant-left { display: grid; gap: 6px; justify-items: center; }
+.ench-book { width: 64px; height: 40px; position: relative; }
+.ench-book i { position: absolute; inset: 0; background: linear-gradient(90deg, #6a3010 0 8%, #eadfc8 8% 48%, #6a3010 48% 52%, #eadfc8 52% 92%, #6a3010 92%); transform: perspective(80px) rotateX(35deg); }
+.slot-pair { display: flex; gap: 4px; }
+.offers { display: grid; gap: 4px; width: 280px; }
+.offer { display: grid; grid-template-columns: 30px 1fr auto; grid-template-rows: auto auto; gap: 0 8px; align-items: center; text-align: left; background: #3c2a50; border: 0; padding: 6px 8px; cursor: pointer; box-shadow: inset 0 0 0 2px #251a33; color: #e6dcff; }
+.offer .lv { grid-row: span 2; font: 700 18px/1 var(--display); color: var(--xp); text-align: center; }
+.offer .rune { font: 13px var(--mono); color: #9a8ab8; letter-spacing: 2px; }
+.offer .clue { font-size: 12px; grid-column: 2; }
+.offer .need { grid-row: span 2; grid-column: 3; font: 700 13px var(--display); color: var(--xp); }
+.offer:disabled { opacity: 0.45; cursor: not-allowed; }
+.offer:not(:disabled):hover { background: #4e3868; }
+.icon-tabs { display: flex; flex-wrap: wrap; gap: 3px; }
+.icon-tab { width: 40px; height: 40px; display: grid; place-items: center; background: #2a3646; border: 0; cursor: pointer; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.3); }
+.icon-tab img { width: 28px; height: 28px; image-rendering: pixelated; }
+.icon-tab[aria-pressed="true"] { background: #8b8b8b; box-shadow: inset 0 0 0 2px #fff; }
+.creative-bar { display: flex; align-items: center; gap: 10px; }
+.tab-name { font: 700 13px/1 var(--display); margin-right: auto; }
+.creative-search { max-width: 220px; padding: 8px 10px; font-size: 13px; }
+.creative-grid { display: grid; grid-template-columns: repeat(9, var(--slot)); max-height: calc(var(--slot) * 5); overflow-y: auto; gap: 0; padding: 0; }
+.creative-hotbar { display: flex; gap: 8px; align-items: center; }
+.slot.trash { width: var(--slot); height: var(--slot); background: #b55 !important; cursor: pointer; }
+@media (max-width: 760px) { #inv-button span:not(.bag) { display: none; } }
+</style>
+</head>
+<body>
+
+<!-- 67 -->
+<canvas id="view" aria-label="Game view"></canvas>
+<div id="water-tint" hidden></div>
+<div id="spyglass" hidden></div>
+<div id="hurt-flash"></div>
+<div id="fire-overlay" hidden></div>
+
+<div id="hud" hidden>
+  <div id="crosshair"></div>
+  <div id="attack-ind" hidden><i></i></div>
+  <div id="info" hidden></div>
+  <div id="debug" hidden aria-label="Debug screen"><div id="debug-left"></div><div id="debug-right"></div></div>
+  <div id="keys-hint">
+    <span><kbd>E</kbd>Inventory</span><span><kbd>T</kbd>Chat</span><span><kbd>/</kbd>Commands</span><span><kbd>H</kbd>Manual</span><span><kbd>Esc</kbd>Pause</span>
+  </div>
+  <div id="effects" hidden></div>
+  <div id="target-label" hidden></div>
+  <div id="toast" hidden></div>
+  <div id="speed-pop" hidden></div>
+  <div id="aim-hint" hidden></div>
+  <div id="hotbar-wrap">
+    <div id="slot-name"></div>
+    <div id="bars" hidden>
+      <div class="col"><div class="icons" id="armor"></div><div class="icons" id="absorb"></div><div class="icons" id="hearts"></div></div>
+      <div class="col"><div class="icons rtl" id="air"></div><div class="icons rtl" id="food"></div></div>
+    </div>
+    <div id="xp" hidden><i id="xp-fill"></i><b id="xp-level"></b></div>
+    <div class="hotbar-row">
+      <div class="slot" id="offhand" hidden></div>
+      <div id="hotbar"></div>
+      <button type="button" id="inv-button" title="Open your inventory (E)"><span class="bag" aria-hidden="true"></span><span>Inventory</span><kbd>E</kbd></button>
+    </div>
+  </div>
+</div>
+
+<div id="chat">
+  <div id="chat-log"></div>
+  <div id="chat-suggest" hidden></div>
+  <input id="chat-input" hidden maxlength="256" autocomplete="off" spellcheck="false" aria-label="Chat or command">
+</div>
+
+<div id="screen" hidden><div id="screen-panel" class="slab"></div></div>
+<div id="cursor-stack" class="slot" hidden></div>
+<div id="tooltip" hidden></div>
+<div id="totem-flash" hidden></div>
+<div id="sleep-fade" hidden></div>
+
+<!-- 67 -->
+<section id="death-screen" class="screen" hidden>
+  <div class="death-card">
+    <h2>You Died!</h2>
+    <p id="death-msg"></p>
+    <p id="death-score"></p>
+    <div class="btn-row">
+      <button class="btn btn-grass" id="respawn">Respawn</button>
+      <button class="btn" id="death-title">Title screen</button>
+    </div>
+  </div>
+</section>
+
+<!-- Title -->
+<section id="title-screen" class="screen" aria-labelledby="game-title">
+  <canvas id="title-strata" width="256" height="56"></canvas>
+  <div class="title-wrap">
+    <div class="brand">
+      <p class="eyebrow">Voxel sandbox &middot; 512 &times; 512 &times; 200 blocks</p>
+      <h1 id="game-title">Blockscape</h1>
+      <p class="lede">Four biomes, over 500 blocks, 300 items, 82 vanilla mobs and 11 kinds of structures. Craft, smelt, enchant and fight, fire orbital cannon shots, and play together on your own server.</p>
+      <div class="title-tabs" role="tablist">
+        <button type="button" role="tab" data-title-tab="worlds">Your worlds</button>
+        <button type="button" role="tab" data-title-tab="create">New world</button>
+        <button type="button" role="tab" data-title-tab="multiplayer">Multiplayer</button>
+      </div>
+      <div class="title-pane" data-title-pane="worlds" hidden>
+        <div id="world-list"></div>
+      </div>
+      <form id="seed-form" class="title-pane" data-title-pane="create" autocomplete="off" hidden>
+        <label class="label" for="world-name">World name</label>
+        <input id="world-name" class="field" maxlength="32" placeholder="New World">
+        <label class="label" for="seed-input">Seed</label>
+        <div class="seed-row">
+          <input id="seed-input" class="field" maxlength="32" spellcheck="false" placeholder="Letters and numbers" aria-describedby="seed-note">
+          <button type="button" class="btn" id="seed-random">Random</button>
+        </div>
+        <div class="seed-meta"><span class="seed-note" id="seed-note"></span><span>Seed number <span id="seed-number"></span></span></div>
+        <div class="opts">
+          <div>
+            <p class="label" style="margin-bottom:8px">Game mode</p>
+            <div class="seg" role="group" aria-label="Game mode">
+              <button type="button" data-mode="survival">Survival</button>
+              <button type="button" data-mode="creative">Creative</button>
+              <button type="button" data-mode="spectator">Spectator</button>
+            </div>
+          </div>
+          <div>
+            <label class="label" for="difficulty" style="display:block;margin-bottom:8px">Difficulty</label>
+            <select id="difficulty" class="field">
+              <option value="peaceful">Peaceful</option><option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option>
+            </select>
+          </div>
+          <p id="mode-desc"></p>
+        </div>
+        <div class="btn-row">
+          <button type="submit" class="btn btn-grass" id="create-world">Create world</button>
+        </div>
+      </form>
+      <form id="mp-form" class="title-pane" data-title-pane="multiplayer" autocomplete="off" hidden>
+        <label class="label" for="mp-name">Your name</label>
+        <input id="mp-name" class="field" maxlength="16" placeholder="Steve">
+        <label class="label" for="mp-address">Server address</label>
+        <input id="mp-address" class="field" placeholder="192.168.1.20:25565">
+        <p class="hint">Start a server with <b>Start Server.command</b> (Mac) or <code>node server.js</code> in the blockscape folder. It prints the address to use. Everyone must be on the same Wi-Fi.</p>
+        <div class="btn-row"><button type="submit" class="btn btn-grass">Join server</button></div>
+        <p id="mp-status" class="seed-note" role="status"></p>
+      </form>
+      <div class="btn-row"><button type="button" class="btn" id="title-manual">Read the manual</button></div>
+    </div>
+    <figure class="preview slab">
+      <figcaption><span class="eyebrow">Seed map</span><span id="preview-seed"></span></figcaption>
+      <canvas id="preview-map" width="512" height="512" aria-label="Top-down map of the world this seed creates"></canvas>
+      <ul id="preview-legend"></ul>
+      <p class="hint">The whole 512 &times; 512 world from above, north at the top. The white cross is where you start.</p>
+    </figure>
+  </div>
+  <p class="title-foot">Best with a keyboard and mouse.</p>
+</section>
+
+<!-- Loading -->
+<section id="loading-screen" class="screen" hidden>
+  <div class="load-card slab">
+    <p class="eyebrow" id="load-seed">Seed</p>
+    <h2 id="load-title">Building your world</h2>
+    <div class="bar"><i id="load-bar"></i></div>
+    <ol id="load-steps">
+      <li>Read the seed and place 9 biome centres</li>
+      <li>Shape the terrain and lay down rock, soil and sand</li>
+      <li>Hide ores and carve caves</li>
+      <li>Grow trees, plants and coral</li>
+      <li>Build the 3D meshes, chunk by chunk</li>
+      <li>Release the animals</li>
+    </ol>
+    <button class="btn btn-grass" id="enter-world" hidden>Enter world</button>
+    <p class="hint" id="enter-hint" hidden>Clicking captures the mouse so you can look around. Press Esc to get it back.</p>
+  </div>
+</section>
+
+<!-- Pause -->
+<section id="pause-screen" class="screen" hidden>
+  <div class="pause-card slab">
+    <p class="eyebrow">Game paused</p>
+    <h2>Blockscape</h2>
+    <div class="pause-meta" id="pause-meta"></div>
+    <p id="pause-note" hidden></p>
+    <button class="btn btn-grass" id="resume">Back to the world</button>
+    <button class="btn" id="pause-mode">Game mode</button>
+    <button class="btn" id="pause-manual">Manual</button>
+    <button class="btn" id="pause-settings">Settings</button>
+    <button class="btn" id="pause-copy">Copy seed</button>
+    <button class="btn" id="pause-quit">Save and quit to title</button>
+  </div>
+</section>
+
+<!-- Manual -->
+<div id="manual" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="manual-title">
+  <div class="modal-card slab">
+    <div class="modal-head">
+      <h2 id="manual-title">Field manual</h2>
+      <button class="btn close" data-close>Close <kbd>H</kbd></button>
+    </div>
+    <div class="manual-body">
+      <div class="tabs" role="tablist" aria-label="Manual sections">
+        <button class="tab" role="tab" data-tab="basics" aria-selected="true">How it works</button>
+        <button class="tab" role="tab" data-tab="controls" aria-selected="false">Controls</button>
+        <button class="tab" role="tab" data-tab="modes" aria-selected="false">Game modes</button>
+        <button class="tab" role="tab" data-tab="survival" aria-selected="false">Survival</button>
+        <button class="tab" role="tab" data-tab="combat" aria-selected="false">Combat</button>
+        <button class="tab" role="tab" data-tab="crafting" aria-selected="false">Crafting</button>
+        <button class="tab" role="tab" data-tab="enchanting" aria-selected="false">Enchanting</button>
+        <button class="tab" role="tab" data-tab="orbital" aria-selected="false">Orbital shots</button>
+        <button class="tab" role="tab" data-tab="structures" aria-selected="false">Structures</button>
+        <button class="tab" role="tab" data-tab="multi" aria-selected="false">Multiplayer</button>
+        <button class="tab" role="tab" data-tab="commands" aria-selected="false">Commands</button>
+        <button class="tab" role="tab" data-tab="biomes" aria-selected="false">Biomes</button>
+        <button class="tab" role="tab" data-tab="animals" aria-selected="false">Animals &amp; mobs</button>
+        <button class="tab" role="tab" data-tab="blocks" aria-selected="false">Blocks</button>
+        <button class="tab" role="tab" data-tab="items" aria-selected="false">Items</button>
+      </div>
+
+<!-- 67 -->
+      <div class="pane" data-pane="basics" role="tabpanel">
+        <h3>The world is a grid of numbers</h3>
+        <p>Blockscape is a box of space cut into cubes. Every cube is one block, 1 metre on each side. The game stores one number per cube: <code>0</code> means air, <code>1</code> is grass, <code>36</code> is stone. Breaking a block writes a 0. Placing a block writes its number. Doors, stairs, slabs and torches also store a few extra bits for which way they face and whether they are open.</p>
+        <div class="figure-row">
+          <div class="fact"><b>512 &times; 512</b><span>blocks across, east&ndash;west by north&ndash;south</span></div>
+          <div class="fact"><b>200</b><span>blocks tall, from bedrock at 0 to the sky limit</span></div>
+          <div class="fact"><b>52 million</b><span>cells, each holding one block number</span></div>
+          <div class="fact"><b>20</b><span>game ticks per second for hunger, furnaces and effects</span></div>
+        </div>
+        <h3>A seed decides everything</h3>
+        <p>The seed you type (letters, numbers and hyphens) is turned into a single 32-bit number, shown on the title screen as the seed number. That number starts a pseudo-random generator that always produces the same sequence, so the same seed rebuilds the same world, tree for tree.</p>
+        <p>Generation runs in this order:</p>
+        <ol>
+          <li><strong>Biomes.</strong> Biome centres on a loose 12 &times; 12 grid. Each column belongs to its nearest centre, and each biome always gets at least two.</li>
+          <li><strong>Height.</strong> Each biome has its own smooth noise. Near borders the heights blend, so you get beaches and slopes.</li>
+          <li><strong>Layers.</strong> Bedrock, deepslate, stone, then a skin of grass, sand or sea floor.</li>
+          <li><strong>Underground.</strong> Veins of coal, iron, copper, gold, redstone, lapis, diamond and emerald, and worm-shaped caves.</li>
+          <li><strong>Life.</strong> Seven kinds of tree, flowers, cacti, sugar cane, kelp, coral, and finally the animals.</li>
+        </ol>
+        <h3>How the picture is drawn</h3>
+        <p>The world is cut into chunks of 16 &times; 16 &times; 16. For each chunk the game only builds faces that touch air or see-through blocks; everything hidden is skipped. Corners are darkened by nearby blocks (ambient occlusion). Glowing blocks like torches, lava and glowstone stay bright at night. Changing a block rebuilds only the chunks around it. Only chunks within your render distance are built at all; more stream in as you move.</p>
+        <h3>How things move</h3>
+        <p>You are a box 0.6 wide and 1.8 tall. Each frame you move along Y, then X, then Z, and stop flush against the first solid box in the way. You step up 0.6 blocks automatically, so slabs and stairs need no jumping. Gravity is 28 blocks per second squared. Mobs follow simple rules: wander, flee, or chase you if they are hostile.</p>
+      </div>
+
+      <div class="pane" data-pane="controls" role="tabpanel" hidden>
+        <h3>Moving</h3>
+        <div class="table-scroll"><table class="controls"><tbody>
+          <tr><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>Walk</td></tr>
+          <tr><td>Double-tap <kbd>W</kbd>, then hold</td><td>Sprint. <kbd>R</kbd> locks sprint on.</td></tr>
+          <tr><td><kbd>Space</kbd></td><td>Jump, swim up, climb ladders. Double-tap in Creative to fly. In mid-air with an elytra on, start gliding.</td></tr>
+          <tr><td><kbd>Shift</kbd></td><td>Sneak (you won't fall off edges). While flying, go down.</td></tr>
+          <tr><td>Mouse</td><td>Look around. Arrow keys also turn the camera.</td></tr>
+          <tr><td><kbd>F5</kbd></td><td>Change view: first person, behind, front, bird's-eye</td></tr>
+          <tr><td><kbd>F3</kbd></td><td>Debug screen: position, chunk, facing, biome, targeted block and entity, FPS and memory. <kbd>F3</kbd>+<kbd>B</kbd> hitboxes, <kbd>F3</kbd>+<kbd>G</kbd> chunk borders</td></tr>
+        </tbody></table></div>
+        <h3>Doing things</h3>
+        <div class="table-scroll"><table class="controls"><tbody>
+          <tr><td>Left click</td><td>Attack, or hold to mine the outlined block</td></tr>
+          <tr><td>Right click</td><td>Place a block, use the held item, or open a door, chest, furnace or table. Hold to eat, draw a bow, raise a shield or charge a spear.</td></tr>
+          <tr><td>Middle click</td><td>Pick the block you're looking at</td></tr>
+          <tr><td><kbd>1</kbd>&ndash;<kbd>9</kbd>, scroll</td><td>Choose a hotbar slot. In Spectator, scroll changes flying speed.</td></tr>
+          <tr><td><kbd>E</kbd></td><td>Inventory (Survival) or creative inventory (Creative)</td></tr>
+          <tr><td><kbd>Q</kbd></td><td>Drop one item. <kbd>Shift</kbd>+<kbd>Q</kbd> drops the stack.</td></tr>
+          <tr><td><kbd>F</kbd></td><td>Swap the items in your two hands</td></tr>
+        </tbody></table></div>
+        <h3>Everything else</h3>
+        <div class="table-scroll"><table class="controls"><tbody>
+          <tr><td><kbd>T</kbd></td><td>Open chat</td></tr>
+          <tr><td><kbd>/</kbd></td><td>Open chat with a command started. Tab completes, Up and Down repeat earlier commands.</td></tr>
+          <tr><td><kbd>H</kbd></td><td>This manual</td></tr>
+          <tr><td><kbd>F1</kbd></td><td>Hide the HUD for screenshots</td></tr>
+          <tr><td><kbd>I</kbd></td><td>Show or hide the info panel (position, biome, speed)</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Pause, change settings or game mode, copy the seed</td></tr>
+        </tbody></table></div>
+        <h3>In inventory screens</h3>
+        <ul>
+          <li>Left click picks up or puts down a whole stack. Right click takes half, or puts down one.</li>
+          <li>Shift-click moves a stack straight to the other side.</li>
+          <li>Hover a slot and press <kbd>1</kbd>&ndash;<kbd>9</kbd> to swap it with that hotbar slot.</li>
+        </ul>
+      </div>
+
+      <div class="pane" data-pane="modes" role="tabpanel" hidden>
+        <h3>Survival</h3>
+        <p>You have 10 hearts and 10 hunger points. Blocks take time to mine and drop items, and some need the right tool (stone needs a pickaxe; iron needs a stone pickaxe; diamond needs iron). You craft everything yourself. Hostile mobs come out at night and in dark caves. Fall damage, drowning, fire, lava, cactus and starvation can hurt you. When you die you drop everything and respawn at your bed or the world spawn.</p>
+        <h3>Creative</h3>
+        <p>You can't be hurt and you never get hungry. Double-tap <kbd>Space</kbd> to fly. Blocks break instantly (swords can't break blocks, like in vanilla). Press <kbd>E</kbd> for the creative inventory: every block, item and enchanted book, in tabs or by search. Hostile mobs ignore you.</p>
+        <h3>Spectator</h3>
+        <p>You fly through everything and can't touch anything. The hotbar, hearts, hunger, crosshair and info panel all disappear, so only the view is left. Scroll the mouse wheel to change flying speed, from 0.1&times; to 10&times;.</p>
+        <h3>Switching</h3>
+        <p>Choose a mode on the title screen, press the Game mode button in the pause menu, or type <code>/gamemode creative</code> (or <code>/gamemode s</code>, <code>/gamemode sp</code>).</p>
+      </div>
+
+      <div class="pane" data-pane="survival" role="tabpanel" hidden>
+        <h3>Health</h3>
+        <p>Hearts sit above the left end of the hotbar. Each heart is 2 health points. Golden hearts above them are absorption, extra health from a golden apple that is lost first. Your armour bar sits above the hearts.</p>
+        <h3>Hunger</h3>
+        <p>Drumsticks sit above the right end of the hotbar. Walking, swimming, jumping, fighting and especially sprinting use up hunger. With 9 or more drumsticks you slowly heal. At 3 or fewer you can't sprint. At zero you start to starve. Eating restores hunger and saturation, a hidden reserve that is used before the drumsticks go down.</p>
+        <h3>Getting food</h3>
+        <p>Kill animals for meat (cows drop beef, pigs porkchops, sheep mutton, chickens chicken, rabbits rabbit), catch fish with a fishing rod, or pick apples from oak leaves. Cook raw meat in a furnace: it restores about twice as much. Raw chicken and rotten flesh can give you Hunger; pufferfish poison you.</p>
+        <h3>Ways to get hurt</h3>
+        <ul>
+          <li><strong>Falling:</strong> 1 damage per block after the first 3. Land in water, on slime or on hay to stop it. A water bucket placed just before you land saves you, as in vanilla.</li>
+          <li><strong>Drowning:</strong> bubbles appear above the hunger bar under water. When they run out you take 2 damage a second.</li>
+          <li><strong>Fire and lava:</strong> you keep burning after you step out. Jump in water to put it out.</li>
+          <li><strong>Mobs:</strong> zombies, husks, drowned, skeletons, spiders, cave spiders, creepers, endermen, witches, slimes, phantoms, pillagers, and wolves, bees or dolphins you've angered.</li>
+          <li><strong>Cactus, magma blocks, suffocating in blocks and starving.</strong></li>
+        </ul>
+        <h3>Smelting</h3>
+        <p>Put raw ore, sand, raw meat or logs into the top slot of a furnace and fuel (coal, charcoal, wood, a lava bucket) into the bottom slot. One item takes 10 seconds; smokers cook food and blast furnaces smelt ore twice as fast. Taking the result gives you experience.</p>
+        <h3>Sleeping</h3>
+        <p>Right click a bed at night to skip to morning. It also sets your respawn point. You can't sleep with monsters nearby.</p>
+      </div>
+
+<!-- 67 -->
+      <div class="pane" data-pane="combat" role="tabpanel" hidden>
+        <h3>Attack cooldown</h3>
+        <p>After every swing, a small bar under the crosshair refills. Hitting before it's full does much less damage. Swords recharge in 0.6 seconds, axes in about 1 second, the mace in 1.7 seconds. Placing blocks has a 0.2-second delay and mining the next block a 0.25-second delay, as in vanilla.</p>
+        <h3>Critical hits</h3>
+        <p>Attack while falling (after a jump) with a fully charged swing for 50% more damage and a burst of sparks. Sprinting into a hit knocks the target further instead.</p>
+        <h3>Shields</h3>
+        <p>Hold a shield in either hand and hold right click to raise it. It blocks every hit from in front, including arrows and explosions, while slowing you down.</p>
+        <h3>Mace</h3>
+        <p>Base damage 6. Hit something while falling and you do a smash attack: +4 damage per block for the first 3 blocks fallen, +2 per block for the next 5, then +1 per block. The smash throws up a ring of dust and a shockwave that knocks back everything nearby, and you take no fall damage. Density adds more damage per block, Breach pierces armour, and Wind Burst launches you back into the air for another smash. It has a long cooldown.</p>
+        <h3>Spear</h3>
+        <p>The spear's damage grows with your speed: multiplied by 1 + speed &divide; 5 blocks per second. Standing still it barely hurts; sprinting doubles it; diving with an elytra can multiply it seven times. Hold right click to charge, and anything you run into while moving fast gets hit automatically. Lunge dashes you forward when you jab. It reaches 4.5 blocks instead of 3.</p>
+        <h3>Golden apples</h3>
+        <p>A golden apple gives Regeneration II for 5 seconds and Absorption (2 golden hearts) for 2 minutes. The enchanted golden apple gives Regeneration II for 20 seconds, Absorption IV, Resistance and Fire Resistance for 5 minutes. You can eat them even when full.</p>
+        <h3>Elytra</h3>
+        <p>Wear the elytra in your chestplate slot. Jump off something high, then press <kbd>Space</kbd> in mid-air to open your wings. Look down to dive and gain speed, look up to trade speed for height, exactly like vanilla's physics. Right click a firework rocket while gliding for a boost. Crashing into a wall at speed hurts. The elytra wears down by 1 for each second of flight.</p>
+        <h3>Other weapons</h3>
+        <ul>
+          <li><strong>Bow:</strong> hold right click to draw (1 second for full power), release to shoot. Needs arrows unless you have Infinity or are in Creative.</li>
+          <li><strong>Axes</strong> hit harder than swords but recharge slowly.</li>
+          <li><strong>Totem of Undying:</strong> hold it and fatal damage leaves you on half a heart with Regeneration and Absorption.</li>
+          <li><strong>Ender pearl:</strong> throw to teleport where it lands (costs 2.5 hearts).</li>
+          <li><strong>Armour:</strong> leather, iron and diamond, each with helmet, chestplate, leggings and boots. Right click armour to wear it.</li>
+        </ul>
+      </div>
+
+      <div class="pane" data-pane="crafting" role="tabpanel" hidden>
+        <h3>How to craft</h3>
+        <p>Press <kbd>E</kbd> for your inventory: its 2&times;2 grid makes small things. Right click a crafting table for a 3&times;3 grid. Arrange items in the shape of a recipe and the result appears on the right. Shift-click the result to craft as many as you can.</p>
+        <p>To start in Survival: punch a tree for logs, turn logs into planks, planks into sticks and a crafting table, then make a wooden pickaxe. Stone tools come next, then a furnace to smelt iron.</p>
+        <h3>Every recipe</h3>
+        <input id="recipe-search" class="field" type="search" placeholder="Search recipes" aria-label="Search recipes">
+        <div class="recipes" id="recipe-list"></div>
+        <h3>Smelting</h3>
+        <div class="recipes" id="smelt-list"></div>
+      </div>
+
+      <div class="pane" data-pane="enchanting" role="tabpanel" hidden>
+        <h3>Enchanted books and anvils</h3>
+        <p>Enchantments are separate items: enchanted books. Put a weapon, tool or armour piece on the left of an anvil and a book on the right, and the anvil adds the book's enchantments for some experience levels. Two books (or two items) with the same enchantment at the same level combine into the next level. Anvils also repair items and rename them.</p>
+        <p>Get books from the enchanting table (put a plain book in it), from fishing, from the creative inventory, or with <code>/give @s enchanted_book[enchantments={sharpness:5}]</code>.</p>
+        <h3>The enchanting table</h3>
+        <p>Put an item and lapis lazuli in the table and pick one of three offers. Bookshelves within two blocks unlock stronger offers (15 gives the best). Each offer costs 1 to 3 levels and lapis.</p>
+        <h3>All enchantments</h3>
+        <div id="enchant-list"></div>
+      </div>
+
+      <div class="pane" data-pane="orbital" role="tabpanel" hidden>
+        <h3>Orbital cannon shots</h3>
+        <p>Six shots from Unstable SMP. Each one looks like an ordinary fishing rod and has 1 durability. Hold it, look at a block (up to 512 blocks away) and right click: you cast and pull the line in one motion, the shot breaks, and half a second later the payload arrives on that block. They can't be crafted. Take them from the creative inventory (Combat tab) or use <code>/give</code>.</p>
+        <table class="controls"><tbody>
+          <tr><td><b>Nuke Shot</b><br><code>/give @s nuke_shot</code></td><td>As in the Unstable SMP cannon, 841 TNT appear as one cluster 72 blocks above the target and hang there for 1.5 seconds. Then they burst outward and fall at normal gravity, fanning into 15 perfect circles 4 blocks apart (42 TNT on the inner ring, 2 more on each ring after it). Each explodes as it lands, leaving a round crater about 120 blocks wide.</td></tr>
+          <tr><td><b>Stab Shot</b><br><code>/give @s stab_shot</code></td><td>Nothing falls: the cannon fills the column you aimed at with TNT, two every 2 blocks from the surface down to bedrock, all with no fuse. It punches an instant shaft straight to the bottom of the world.</td></tr>
+          <tr><td><b>Orbital Wither Shot</b><br><code>/give @s wither_shot</code></td><td>Spoke and Jamato's cannon: 750 blue wither skulls appear in a dome above the target, each flying in a straight line (no gravity) to its own point within 25 blocks. They fly fast, break anything except bedrock (including obsidian, water and lava) and give Wither II.</td></tr>
+          <tr><td><b>Wolf Cannon Shot</b><br><code>/give @s wolf_shot</code></td><td>FlameFrag's wolf cannon: 30 wolves drop from 72 blocks up, tamed to you, wearing red collars and wolf armour (soaks up 64 damage before it breaks), with Strength II, Speed II, Fire Resistance and Regeneration II for 3 minutes. Like vanilla tamed wolves they follow you and attack whatever you hit or whatever hits you.</td></tr>
+          <tr><td><b>Cubicmetre Orbital Strike Cannon</b><br><code>/give @s cubicmetre_shot</code></td><td>Cubicmetre's original design. The whole payload (about 700 TNT) arrives stacked in one spot 40 blocks above the target, so it looks like a single TNT. After 0.6 seconds an expansion charge goes off inside the stack and the TNT race outward into 12 rings, 5 blocks apart, with more TNT on the bigger rings. Each explodes where it lands.</td></tr>
+          <tr><td><b>Compressed Orbital Shot</b><br><code>/give @s compressed_shot</code></td><td>A single block containing 100 TNT appears exactly on the target block and explodes 100 times in a row, 0.05 seconds apart.</td></tr>
+        </tbody></table>
+        <p class="hint">Big strikes rebuild the world a few chunks at a time, so the crater fills in over a second or two.</p>
+      </div>
+
+      <div class="pane" data-pane="structures" role="tabpanel" hidden>
+        <h3>Structures</h3>
+        <p>Every world generates these from its seed. Use <code>/locate structure &lt;name&gt;</code> to find the nearest one and click the result to teleport.</p>
+        <table class="controls"><tbody>
+          <tr><td><b>Village</b> (plains) and <b>desert village</b></td><td>A well with a bell, streets, houses with beds, job blocks and chests, farms, lamp posts, villagers, an iron golem and a cat. Ring the bell to send villagers running.</td></tr>
+          <tr><td><b>Desert pyramid</b></td><td>A sandstone pyramid. Under the blue terracotta in the middle is a shaft to a hidden room with four chests, and a TNT trap underneath.</td></tr>
+          <tr><td><b>Desert well</b></td><td>A small sandstone well. Look for suspicious sand next to it.</td></tr>
+          <tr><td><b>Shipwreck</b></td><td>A sunken ship on the sea floor with treasure chests (look for a heart of the sea). Drowned nearby.</td></tr>
+          <tr><td><b>Ocean ruins</b></td><td>Broken stone brick rooms under water with a chest and drowned.</td></tr>
+          <tr><td><b>Ocean monument</b></td><td>A big prismarine temple in deep ocean, lit by sea lanterns, guarded by guardians and an elder guardian. It hides a core of gold blocks.</td></tr>
+          <tr><td><b>Dungeon</b></td><td>A cobblestone room beside a cave with a monster spawner (zombie, skeleton or spider) and one or two chests. The spawner works while you're within 16 blocks; break it to stop it.</td></tr>
+          <tr><td><b>Ruined portal</b></td><td>A broken obsidian frame on netherrack and magma, with a gold block and a chest of golden loot.</td></tr>
+          <tr><td><b>Pillager outpost</b></td><td>A dark oak watchtower full of pillagers with a chest at the top, and a cage holding an allay.</td></tr>
+          <tr><td><b>Witch hut</b></td><td>A spruce hut on stilts in the forest with a cauldron and a witch.</td></tr>
+        </tbody></table>
+      </div>
+
+      <div class="pane" data-pane="multi" role="tabpanel" hidden>
+        <h3>Playing together</h3>
+        <p>Blockscape has a dedicated server, like Minecraft's. It runs the world (mobs, items, explosions, furnaces, time and weather) and everyone on the same Wi-Fi plays in it from their browser.</p>
+        <ol>
+          <li>On the computer that will host, double-click <b>Start Server.command</b> in the blockscape folder (or run <code>node server.js</code>). Node.js must be installed.</li>
+          <li>The window shows addresses like <code>http://192.168.1.20:25565</code>. Open that in a browser on each computer, or type the address on the Multiplayer tab.</li>
+          <li>Enter your name and press Join server.</li>
+        </ol>
+        <h3>Server settings</h3>
+        <p>Edit <code>server.properties</code> and restart the server: <code>server-port</code>, <code>level-name</code>, <code>level-seed</code> (empty for a random one), <code>gamemode</code>, <code>difficulty</code>, <code>max-players</code>, <code>pvp</code>, <code>motd</code>, <code>autosave-seconds</code>. The world and every player's inventory are saved in <code>worlds/&lt;level-name&gt;/level.json</code> every minute and when you stop the server with Ctrl+C.</p>
+      </div>
+
+      <div class="pane" data-pane="commands" role="tabpanel" hidden>
+        <h3>Using commands</h3>
+        <p>Press <kbd>/</kbd> to start a command, or <kbd>T</kbd> then type one. Suggestions appear as you type; <kbd>Tab</kbd> fills them in. Coordinates accept <code>~</code> for "where I am", so <code>/tp ~ ~30 ~</code> lifts you 30 blocks. Type <code>/?</code> in game for the full list.</p>
+        <h3>Shortcuts for tedious tasks</h3>
+        <ul>
+          <li><code>/fill ~-5 ~-1 ~-5 ~5 ~-1 ~5 stone_bricks</code> lays a floor in one go.</li>
+          <li><code>/fill ~-3 ~ ~-3 ~3 ~4 ~3 glass hollow</code> builds a glass room.</li>
+          <li><code>/give @s diamond_sword[enchantments={sharpness:5,fire_aspect:2}]</code></li>
+          <li><code>/locate biome desert</code> then click the coordinates to go there.</li>
+          <li><code>/time set day</code>, <code>/weather clear</code>, <code>/kill @e[type=zombie]</code></li>
+        </ul>
+        <h3>Every command</h3>
+        <div id="command-list"></div>
+      </div>
+
+      <div class="pane" data-pane="biomes" role="tabpanel" hidden>
+        <h3>Four biomes, nine regions</h3>
+        <p>Every world has all four biomes. The seed decides where they sit and how big each one is.</p>
+        <div class="biome-grid" id="biome-grid" style="margin-top:16px"></div>
+      </div>
+
+<!-- 67 -->
+      <div class="pane" data-pane="animals" role="tabpanel" hidden>
+        <h3 id="bestiary-title">Bestiary</h3>
+        <p>Look at an animal to see its name and health. Each one you find is marked as seen.</p>
+        <div class="bestiary" id="bestiary" style="margin-top:16px"></div>
+        <h3>Hostile mobs</h3>
+        <p>These spawn in Survival at night and in dark caves, and chase you from up to 16 blocks away. Zombies and skeletons burn in sunlight.</p>
+        <div class="bestiary" id="mobs-list" style="margin-top:16px"></div>
+      </div>
+
+      <div class="pane" data-pane="blocks" role="tabpanel" hidden><div id="block-catalog"></div></div>
+      <div class="pane" data-pane="items" role="tabpanel" hidden>
+        <h3>Items</h3>
+        <p>Everything you can hold that isn't a block. The grey name is what to type in <code>/give</code>.</p>
+        <div id="item-catalog"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div id="settings" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="settings-title">
+  <div class="modal-card slab settings-card">
+    <div class="modal-head">
+      <h2 id="settings-title">Settings</h2>
+      <button class="btn close" data-close>Done</button>
+    </div>
+    <div class="settings-body">
+      <div class="setting"><label for="set-sens">Mouse sensitivity</label><output id="out-sens"></output><input type="range" id="set-sens" min="0.2" max="3" step="0.1"></div>
+      <div class="setting"><label for="set-fov">Field of view</label><output id="out-fov"></output><input type="range" id="set-fov" min="50" max="110" step="1"></div>
+      <div class="setting"><label for="set-rd">Render distance</label><output id="out-rd"></output><input type="range" id="set-rd" min="4" max="16" step="1"></div>
+      <div class="setting"><label for="set-vol">Sounds</label><output id="out-vol"></output><input type="range" id="set-vol" min="0" max="1" step="0.05"></div>
+      <div class="setting"><label for="set-music">Music</label><output id="out-music"></output><input type="range" id="set-music" min="0" max="1" step="0.05"></div>
+      <div class="setting"><label for="set-invert">Invert mouse up and down</label><input type="checkbox" id="set-invert"></div>
+      <div class="setting"><label for="set-day">Day and night cycle</label><input type="checkbox" id="set-day"></div>
+      <div class="setting"><label for="set-info">Show the info panel</label><input type="checkbox" id="set-info"></div>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script>window.THREE || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');</script>
+<script src="js/noise.js"></script>
+<script src="js/core.js"></script>
+<script src="js/blocks.js"></script>
+<script src="js/items.js"></script>
+<script src="js/world.js"></script>
+<script src="js/structures.js"></script>
+<script src="js/mesher.js"></script>
+<script src="js/mobs.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/player.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/commands.js"></script>
+<script src="js/net.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
+
+<!-- 67 -->
